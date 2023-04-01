@@ -1,0 +1,55 @@
+-- initially run "mv bug.txt bug.fut" as github does not allow uploads of .fut files
+
+-- to reproduce bug run "futhark test --backend=opencl bug.fut". 
+
+
+type isoCoordinates = {xi: f64, eta: f64, zeta: f64}
+type index        = {x: i64, y: i64, z: i64}
+
+def pt :f64 = 1f64/f64.sqrt(3f64)
+def quadpoints :[8]isoCoordinates =
+  [{xi=pt,eta=pt,zeta=pt},{xi=(-pt),eta=pt,zeta=pt},
+  {xi=pt,eta=(-pt),zeta=pt},{xi=(-pt),eta=(-pt),zeta=pt},
+  {xi=pt,eta=pt,zeta=(-pt)},{xi=(-pt),eta=pt,zeta=(-pt)},
+  {xi=pt,eta=(-pt),zeta=(-pt)},{xi=(-pt),eta=(-pt),zeta=(-pt)}]
+
+def matmul_f64 [n][m][p] (A: [n][m]f64) (B: [m][p]f64) :[n][p]f64 =
+  map (\A_row ->
+    map (\B_col ->
+      f64.sum (map2 (*) A_row B_col))
+    (transpose B))
+  A
+
+def Cmat :[6][6]f64 = [[0.35e2 / 0.26e2,0.15e2 / 0.26e2,0.15e2 / 0.26e2,0,0,0],[0.15e2 / 0.26e2,0.35e2 / 0.26e2,0.15e2 / 0.26e2,0,0,0],[0.15e2 / 0.26e2,0.15e2 / 0.26e2,0.35e2 / 0.26e2,0,0,0],[0,0,0,0.5e1 / 0.13e2,0,0],[0,0,0,0,0.5e1 / 0.13e2,0],[0,0,0,0,0,0.5e1 / 0.13e2]]
+
+def getB0 (iso :isoCoordinates) :[6][24]f64 =
+  let xi = iso.xi
+  let eta = iso.eta
+  let zeta = iso.zeta
+  in [[-(1 - eta) * (1 - zeta) / 4,0,0,(1 - eta) * (1 - zeta) / 4,0,0,(1 + eta) * (1 - zeta) / 4,0,0,-(1 + eta) * (1 - zeta) / 4,0,0,-(1 - eta) * (1 + zeta) / 4,0,0,(1 - eta) * (1 + zeta) / 4,0,0,(1 + eta) * (1 + zeta) / 4,0,0,-(1 + eta) * (1 + zeta) / 4,0,0],[0,-(1 - xi) * (1 - zeta) / 4,0,0,-(1 + xi) * (1 - zeta) / 4,0,0,(1 + xi) * (1 - zeta) / 4,0,0,(1 - xi) * (1 - zeta) / 4,0,0,-(1 - xi) * (1 + zeta) / 4,0,0,-(1 + xi) * (1 + zeta) / 4,0,0,(1 + xi) * (1 + zeta) / 4,0,0,(1 - xi) * (1 + zeta) / 4,0],[0,0,-(1 - xi) * (1 - eta) / 4,0,0,-(1 + xi) * (1 - eta) / 4,0,0,-(1 + xi) * (1 + eta) / 4,0,0,-(1 - xi) * (1 + eta) / 4,0,0,(1 - xi) * (1 - eta) / 4,0,0,(1 + xi) * (1 - eta) / 4,0,0,(1 + xi) * (1 + eta) / 4,0,0,(1 - xi) * (1 + eta) / 4],[-(1 - xi) * (1 - zeta) / 4,-(1 - eta) * (1 - zeta) / 4,0,-(1 + xi) * (1 - zeta) / 4,(1 - eta) * (1 - zeta) / 4,0,(1 + xi) * (1 - zeta) / 4,(1 + eta) * (1 - zeta) / 4,0,(1 - xi) * (1 - zeta) / 4,-(1 + eta) * (1 - zeta) / 4,0,-(1 - xi) * (1 + zeta) / 4,-(1 - eta) * (1 + zeta) / 4,0,-(1 + xi) * (1 + zeta) / 4,(1 - eta) * (1 + zeta) / 4,0,(1 + xi) * (1 + zeta) / 4,(1 + eta) * (1 + zeta) / 4,0,(1 - xi) * (1 + zeta) / 4,-(1 + eta) * (1 + zeta) / 4,0],[0,-(1 - xi) * (1 - eta) / 4,-(1 - xi) * (1 - zeta) / 4,0,-(1 + xi) * (1 - eta) / 4,-(1 + xi) * (1 - zeta) / 4,0,-(1 + xi) * (1 + eta) / 4,(1 + xi) * (1 - zeta) / 4,0,-(1 - xi) * (1 + eta) / 4,(1 - xi) * (1 - zeta) / 4,0,(1 - xi) * (1 - eta) / 4,-(1 - xi) * (1 + zeta) / 4,0,(1 + xi) * (1 - eta) / 4,-(1 + xi) * (1 + zeta) / 4,0,(1 + xi) * (1 + eta) / 4,(1 + xi) * (1 + zeta) / 4,0,(1 - xi) * (1 + eta) / 4,(1 - xi) * (1 + zeta) / 4],[-(1 - xi) * (1 - eta) / 4,0,-(1 - eta) * (1 - zeta) / 4,-(1 + xi) * (1 - eta) / 4,0,(1 - eta) * (1 - zeta) / 4,-(1 + xi) * (1 + eta) / 4,0,(1 + eta) * (1 - zeta) / 4,-(1 - xi) * (1 + eta) / 4,0,-(1 + eta) * (1 - zeta) / 4,(1 - xi) * (1 - eta) / 4,0,-(1 - eta) * (1 + zeta) / 4,(1 + xi) * (1 - eta) / 4,0,(1 - eta) * (1 + zeta) / 4,(1 + xi) * (1 + eta) / 4,0,(1 + eta) * (1 + zeta) / 4,(1 - xi) * (1 + eta) / 4,0,-(1 + eta) * (1 + zeta) / 4]]
+
+def getQuadraturePointStiffnessMatrix (youngsModule :f64) (iso :isoCoordinates) :[24][24]f64 =
+  let B0 = getB0 iso
+  let C = map (map (*youngsModule)) (copy Cmat)
+  let inter_geom = matmul_f64 (transpose B0) C
+  in matmul_f64 inter_geom B0
+
+def assembleElementNonlinearStiffnessMatrix (youngsModule :f64) :[24][24]f64 =
+   map (getQuadraturePointStiffnessMatrix youngsModule) quadpoints
+    |> transpose
+    |> map transpose
+    |> map (map f64.sum)
+
+def getElementStiffnessDiagonal [nelx][nely][nelz] (x :[nelx][nely][nelz]f32) (elementIndex :index) :[24]f64 =
+  let xloc = f64.f32 (#[unsafe] x[elementIndex.x,elementIndex.y,elementIndex.z])
+  let kt   = assembleElementNonlinearStiffnessMatrix xloc
+  in map (\i -> #[unsafe] kt[i,i]) (iota 24)
+
+entry main [nelx][nely][nelz] (x :[nelx][nely][nelz]f32) =
+  tabulate_3d nelx nely nelz (\i j k -> getElementStiffnessDiagonal x {x=i,y=j,z=k})
+
+entry generate_test_input nelx nely nelz = replicate nelx (replicate nely (replicate nelz 1f32))
+
+-- ==
+-- entry: main
+-- input { [[[1f32, 1f32], [1f32, 1f32]], [[1f32, 1f32], [1f32, 1f32]]] } auto output
