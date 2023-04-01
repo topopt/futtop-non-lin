@@ -1,2 +1,2 @@
 # futtop-non-lin
-Topology optimization for linear elastic minimum compliance with volume constraints on cartesian grids in 3D. Implemented in Futhark.
+Topology optimization for the non-linear elasticity minimum end-compliance problem with a volume constraints on cartesian grids in 3D. Implemented in Futhark.
